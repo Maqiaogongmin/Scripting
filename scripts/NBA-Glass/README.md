@@ -2,7 +2,7 @@
 
 v0.5.0 · 适用于 Scripting App
 
-[点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Freleases%2Fdownload%2Fnba-glass-v0.5.0%2FNBA-Glass.zip%22%5D) · [版本下载](https://github.com/Maqiaogongmin/Scripting/releases/tag/nba-glass-v0.5.0)
+[点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Freleases%2Fdownload%2Fnba-glass-v0.5.0%2FNBA-Glass.zip%3Fv%3D0.5.0%22%5D) · [版本下载](https://github.com/Maqiaogongmin/Scripting/releases/tag/nba-glass-v0.5.0)
 
 NBA 赛程 · Glass 把整个赛季的赛程、球员评分和球迷评论放进同一个脚本。近日、赛季、组件三个底部标签，让查比赛和看赛后讨论各有位置；中性蓝灰玻璃界面兼顾清晰度和轻盈感。
 

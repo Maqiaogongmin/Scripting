@@ -4,7 +4,7 @@
 
 | 脚本 | 功能 | 安装 |
 | --- | --- | --- |
-| [NBA 赛程 · Glass](scripts/NBA-Glass) | 全赛季赛程、虎扑球员评分与评论、多尺寸桌面组件 | [点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Freleases%2Fdownload%2Fnba-glass-v0.5.0%2FNBA-Glass.zip%22%5D) |
+| [NBA 赛程 · Glass](scripts/NBA-Glass) | 全赛季赛程、虎扑球员评分与评论、多尺寸桌面组件 | [点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Freleases%2Fdownload%2Fnba-glass-v0.5.0%2FNBA-Glass.zip%3Fv%3D0.5.0%22%5D) |
 
 先在 iPhone / iPad 上安装 [Scripting App](https://scripting.fun/)，再通过上方链接导入脚本。
 
