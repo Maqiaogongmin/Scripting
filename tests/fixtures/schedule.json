@@ -1,0 +1,49 @@
+{
+  "success": true,
+  "result": {
+    "dayGameData": [
+      {
+        "matchData": [
+          {
+            "businessType": "basketball",
+            "matchId": "1537445624650137600",
+            "matchStatus": "COMPLETED",
+            "matchStatusDesc": "已结束",
+            "matchStartTimeStamp": "1792634400000",
+            "matchStartDate": "2026-10-22",
+            "matchIntroduction": "NBA常规赛",
+            "againstInfo": {
+              "memberInfos": [
+                {
+                  "memberName": "勇士",
+                  "memberLogo": "http://i11.hoopchina.com.cn/all-backend/D48624DA509B5BBC4B447DCBDC496B71_1698746059833.png",
+                  "memberBaseScore": "105",
+                  "memberExtraScore": null,
+                  "memberBigScore": null,
+                  "memberId": "1901000000501331",
+                  "memberType": "",
+                  "memberDesc": ""
+                },
+                {
+                  "memberName": "湖人",
+                  "memberLogo": "http://i11.hoopchina.com.cn/all-backend/708BC902E00BBD439A1C892A0D58F381_1657174320036.png",
+                  "memberBaseScore": "127",
+                  "memberExtraScore": null,
+                  "memberBigScore": null,
+                  "memberId": "1901000000501323",
+                  "memberType": "",
+                  "memberDesc": ""
+                }
+              ],
+              "winnerMemberId": "1901000000501323"
+            },
+            "scoreItemKey": {
+              "outBizNo": "8816",
+              "outBizType": "basketball_match"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

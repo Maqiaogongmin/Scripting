@@ -17,8 +17,8 @@ export async function readCache<T>(key: string): Promise<Snapshot<T> | null> {
   return null
 }
 
-export async function saveCache<T>(key: string, value: T): Promise<Snapshot<T>> {
-  const record = { value, fetchedAt: Date.now() }
+export async function saveCache<T>(key: string, value: T, fetchedAt = Date.now()): Promise<Snapshot<T>> {
+  const record = { value, fetchedAt }
   await FileManager.createDirectory(base(), true)
   const file = `${base()}/${encodeURIComponent(key)}-${record.fetchedAt}-${Math.random().toString(36).slice(2)}.json`
   await FileManager.writeAsString(file, JSON.stringify(record))

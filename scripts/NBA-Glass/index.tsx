@@ -1,9 +1,11 @@
-import { Button, Divider, HStack, Link, List, Navigation, NavigationLink, NavigationStack, Picker, ProgressView, Script, Section, Tab, TabView, Text, VStack, Widget, useEffect, useObservable, useState, type VirtualNode, type WidgetFamily } from "scripting"
+import { Button, Divider, HStack, Link, List, Navigation, NavigationLink, NavigationStack, Picker, ProgressView, Script, Section, Tab, TabView, Text, VStack, Widget, useEffect, useObservable, useState, useRef, type VirtualNode, type WidgetFamily } from "scripting"
 import { api } from "./runtime/client"
 import { readCache, saveCache } from "./runtime/cache"
-import { cachedSeason, refreshSeason } from "./runtime/service"
+import { cachedSeason, refreshSeason, rememberMatch } from "./runtime/service"
 import { initialSelection } from "./runtime/selection"
 import { beijingDate, nextDays, type Board, type Comment, type Game, type Player, type Season } from "./runtime/hupu"
+import { parseBoxScore, type BoxScore } from "./runtime/boxscore"
+import { StatsTable } from "./boxscore-ui"
 import { Avatar, colors, CommentCard, MatchRow, Surface } from "./ui"
 
 function PlayerComments({ player }: { player: Player }) {
@@ -32,37 +34,81 @@ function PlayerComments({ player }: { player: Player }) {
   </List>
 }
 
-function Detail({ game }: { game: Game }) {
+function Detail({ game, onUpdated }: { game: Game; onUpdated?: (game: Game) => void }) {
   const c = colors()
   const [board, setBoard] = useState<Board | null>(null)
   const [team, setTeam] = useState(game.teams[0].id)
-  const [busy, setBusy] = useState(true)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState("")
-  async function load() {
-    setBusy(true); setError("")
-    const prior = await readCache<Board>(`board-${game.id}`)
-    if (prior?.value.matchId === game.id) { setBoard(prior.value) }
+  const [current, setCurrent] = useState(game)
+  const [mode, setMode] = useState("评分")
+  const [box, setBox] = useState<BoxScore | null>(null)
+  const [statsBusy, setStatsBusy] = useState(false)
+  const [statsError, setStatsError] = useState("")
+  const loading = useRef(false)
+  const statsLoading = useRef(false)
+  async function loadStats(match: Game) {
+    if (statsLoading.current) return
+    statsLoading.current = true; setStatsBusy(true); setStatsError("")
     try {
-      const result = await api.board(game)
-      setBoard(result)
-      if (result) await saveCache(`board-${game.id}`, result)
-    } catch (e) { setError(String(e)) } finally { setBusy(false) }
+      if (!box) {
+        const prior = await readCache<BoxScore>(`box-${match.id}`)
+        if (prior?.value.matchId === match.id) setBox(prior.value)
+      }
+      const result = parseBoxScore(await api.playerStats(match), match)
+      setBox(result)
+      if (result) await saveCache(`box-${match.id}`, result)
+    } catch { setStatsError("统计更新失败") }
+    finally { statsLoading.current = false; setStatsBusy(false) }
+  }
+  async function load() {
+    if (loading.current) return
+    loading.current = true; setBusy(true); setError("")
+    let match = current
+    const errors: string[] = []
+    try {
+      try {
+        match = await api.match(current)
+        setCurrent(match); onUpdated?.(match)
+        try { await rememberMatch(match); Widget.reloadAll() } catch { errors.push("缓存未保存") }
+      } catch { errors.push("比分更新失败") }
+      if (!board) {
+        const prior = await readCache<Board>(`board-${match.id}`)
+        if (prior?.value.matchId === match.id) setBoard(prior.value)
+      }
+      try {
+        const result = await api.board(match)
+        setBoard(result)
+        if (result) await saveCache(`board-${match.id}`, result)
+      } catch { errors.push("评分更新失败") }
+      if (mode === "技术统计" || box) await loadStats(match)
+    } catch { errors.push("加载失败") }
+    finally { setError(errors.join(" · ")); loading.current = false; setBusy(false) }
   }
   useEffect(() => { void load() }, [game.id])
   const players = board?.players.filter(p => p.teamId === team).sort((a, b) => b.raters - a.raters) ?? []
-  return <List navigationTitle="比赛详情" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={{ primaryAction: <Button title="刷新" action={load} disabled={busy} /> }}>
-    <Surface><Text font="caption" foregroundStyle={c.secondary}>{game.date}</Text><MatchRow game={game} /></Surface>
-    {busy ? <ProgressView title="正在读取本场评分" /> : null}
-    {error ? <Surface><Text foregroundStyle={c.secondary}>{board ? "更新失败" : "评分加载失败"}</Text><Button title="重试" action={load} buttonStyle="bordered" /></Surface> : null}
-    {!busy && !error && !board ? <Surface><Text>暂无评分</Text></Surface> : null}
-    {board ? <Picker title="球队" value={team} onChanged={setTeam} pickerStyle="segmented">{game.teams.map(t => <Text key={t.id} tag={t.id}>{t.name}</Text>)}</Picker> : null}
-    {players.map(player => <Surface key={player.key.outBizNo}>
-      <HStack spacing={12} frame={{ maxWidth: "infinity" }}><Avatar url={player.avatar} name={player.name} size={48} /><VStack alignment="leading" frame={{ maxWidth: "infinity", alignment: "leading" }}><Text font="headline" foregroundStyle={c.primary}>{player.name}</Text><Text font="caption" foregroundStyle={c.secondary}>{player.stats}</Text></VStack><VStack alignment="trailing"><Text font="title2" fontWeight="bold" foregroundStyle={c.accent}>{player.rating == null ? "待评分" : player.rating.toFixed(1)}</Text><Text font="caption2" foregroundStyle={c.secondary}>{`${player.raters.toLocaleString()} 人评分`}</Text></VStack></HStack>
-      <VStack alignment="leading">{player.hotComments.map(comment => <CommentCard key={comment.id} comment={comment} />)}</VStack>
-      <NavigationLink destination={<PlayerComments player={player} />} buttonStyle="plain"><Text foregroundStyle={c.accent}>{`最新评论（${player.commentCount.toLocaleString()}）`}</Text></NavigationLink>
-    </Surface>)}
-    {board && !busy && !players.length ? <Text>暂无球员评分</Text> : null}
-  </List>
+  return <VStack spacing={8} navigationTitle="比赛详情" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={{ primaryAction: <Button title="刷新" action={load} disabled={busy || statsBusy} /> }}>
+    <Picker title="内容" value={mode} onChanged={(value: string) => { setMode(value); if (value === "技术统计" && !box) void loadStats(current) }} pickerStyle="segmented" padding={{ horizontal: 20 }}><Text tag="评分">评分</Text><Text tag="技术统计">技术统计</Text></Picker>
+    <Picker title="球队" value={team} onChanged={setTeam} pickerStyle="segmented" padding={{ horizontal: 20 }}>{current.teams.map(t => <Text key={t.id} tag={t.id}>{t.name}</Text>)}</Picker>
+    <List listStyle="plain" scrollContentBackground="hidden">
+      <Surface><Text font="caption" foregroundStyle={c.secondary}>{current.date}</Text><MatchRow game={current} /></Surface>
+      {busy ? <ProgressView /> : null}
+      {error ? <Text font="caption" foregroundStyle={c.secondary}>{error}</Text> : null}
+      {mode === "技术统计" ? <VStack spacing={8}>
+        {statsBusy ? <ProgressView /> : null}
+        {statsError ? <VStack><Text font="caption" foregroundStyle={c.secondary}>{statsError}</Text><Button title="重试统计" buttonStyle="bordered" action={() => loadStats(current)} /></VStack> : null}
+        {box ? <StatsTable box={box} teamId={team} /> : !statsBusy && !statsError ? <Text foregroundStyle={c.secondary}>暂无技术统计</Text> : null}
+      </VStack> : <Section>
+        {!busy && !board && !error ? <Text foregroundStyle={c.secondary}>暂无评分</Text> : null}
+        {players.map(player => <Surface key={player.key.outBizNo}>
+          <HStack spacing={12} frame={{ maxWidth: "infinity" }}><Avatar url={player.avatar} name={player.name} size={48} /><VStack alignment="leading" frame={{ maxWidth: "infinity", alignment: "leading" }}><Text font="headline" foregroundStyle={c.primary}>{player.name}</Text><Text font="caption" foregroundStyle={c.secondary}>{player.stats}</Text></VStack><VStack alignment="trailing"><Text font="title2" fontWeight="bold" foregroundStyle={c.accent}>{player.rating == null ? "待评分" : player.rating.toFixed(1)}</Text><Text font="caption2" foregroundStyle={c.secondary}>{`${player.raters.toLocaleString()} 人评分`}</Text></VStack></HStack>
+          <VStack alignment="leading">{player.hotComments.map(comment => <CommentCard key={comment.id} comment={comment} />)}</VStack>
+          <NavigationLink destination={<PlayerComments player={player} />} buttonStyle="plain"><Text foregroundStyle={c.accent}>{`最新评论（${player.commentCount.toLocaleString()}）`}</Text></NavigationLink>
+        </Surface>)}
+        {board && !busy && !players.length ? <Text>暂无球员评分</Text> : null}
+      </Section>}
+    </List>
+  </VStack>
 }
 
 function App() {
@@ -108,9 +154,12 @@ function App() {
   const recentGroups = recent === "赛程" ? nextDays(season?.games ?? []) : [...new Set((season?.games ?? []).filter(g => g.status === "COMPLETED" && g.time <= Date.now()).map(g => g.date))].sort().reverse().slice(0, 3).map(date => ({ date, games: (season?.games ?? []).filter(g => g.date === date && g.status === "COMPLETED") }))
   const toolbar = { cancellationAction: <Button title="关闭" action={dismiss} />, primaryAction: <Button title="刷新" action={() => load(true)} disabled={busy} /> }
   const status = <VStack spacing={6}>{busy ? <ProgressView title={progress || "正在同步赛程"} /> : null}{error ? <VStack><Text font="caption" foregroundStyle={c.secondary}>同步失败</Text><Button title="重试" action={() => load(true)} buttonStyle="bordered" /></VStack> : null}</VStack>
+  function updateGame(game: Game) {
+    setSeason(prior => prior ? { ...prior, games: prior.games.map(item => item.id === game.id ? game : item) } : prior)
+  }
   function matchSection(date: string, items: Game[]) {
     return <Section key={date} header={<Text font="headline" foregroundStyle={c.secondary}>{date}</Text>}>
-      {items.map(game => <NavigationLink key={game.id} destination={<Detail game={game} />} buttonStyle="plain" listRowSeparator="hidden"><Surface><MatchRow game={game} /></Surface></NavigationLink>)}
+      {items.map(game => <NavigationLink key={game.id} destination={<Detail game={game} onUpdated={updateGame} />} buttonStyle="plain" listRowSeparator="hidden"><Surface><MatchRow game={game} /></Surface></NavigationLink>)}
     </Section>
   }
   function filterRow(title: string, picker: VirtualNode) {
@@ -122,7 +171,7 @@ function App() {
       {status}
       <List listStyle="plain" scrollContentBackground="hidden">{recentGroups.map(group => matchSection(group.date, group.games))}{season && !busy && !recentGroups.length ? <Text foregroundStyle={c.secondary}>暂无可用比赛</Text> : null}</List>
     </VStack></NavigationStack></Tab>
-    <Tab title="赛季" systemImage="calendar" value={1}><NavigationStack>{focused ? <VStack><Button title="返回赛程" action={() => setFocus("")} buttonStyle="bordered" frame={{ minHeight: 44 }} /><Detail game={focused} /></VStack> : <VStack spacing={8} navigationTitle="赛季赛程" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={toolbar}>
+    <Tab title="赛季" systemImage="calendar" value={1}><NavigationStack>{focused ? <VStack><Button title="返回赛程" action={() => setFocus("")} buttonStyle="bordered" frame={{ minHeight: 44 }} /><Detail game={focused} onUpdated={updateGame} /></VStack> : <VStack spacing={8} navigationTitle="赛季赛程" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={toolbar}>
       {season ? <HStack spacing={12} padding={{ horizontal: 20 }}><Button title={filtersExpanded ? "收起筛选 ↑" : "展开筛选 ↓"} buttonStyle="bordered" frame={{ minHeight: 44 }} action={() => setFiltersExpanded(value => !value)} /><Text font="caption" foregroundStyle={c.secondary} lineLimit={1} frame={{ maxWidth: "infinity", alignment: "trailing" }}>{[phase.replace("NBA", "") || "全部阶段", season.teams.find(t => t.id === team)?.name, day || month].filter(Boolean).join(" · ")}</Text></HStack> : null}
       {season && filtersExpanded ? <VStack spacing={0} padding={{ horizontal: 20 }}>
         {filterRow("阶段", <Picker title="阶段" labelsHidden value={phase} onChanged={(value: string) => { setPhase(value); setDay("") }} pickerStyle="menu" frame={{ maxWidth: "infinity", alignment: "trailing" }}><Text tag="">全部阶段</Text>{[...new Set(season.games.map(g => g.phase))].map(p => <Text key={p} tag={p}>{p}</Text>)}</Picker>)}<Divider />

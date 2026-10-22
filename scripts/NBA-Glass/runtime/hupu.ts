@@ -107,6 +107,16 @@ export class Hupu {
   async recent(): Promise<Game[]> {
     return parseSchedule(await this.get(SCHEDULE, { businessType: "common", datasource: "navigation", businessId: "nba" }))
   }
+  async match(game: Game): Promise<Game> {
+    const games = parseSchedule(await this.get(SCHEDULE, { businessType: "team", datasource: "basketball", businessId: game.teams[0].id }))
+    const current = games.find(item => item.id === game.id)
+    if (!current) throw new Error("来源未返回本场比赛")
+    if (current.time !== game.time || current.teams.map(t => t.id).sort().join() !== game.teams.map(t => t.id).sort().join()) throw new Error("本场比赛信息不匹配")
+    return current
+  }
+  async playerStats(game: Game): Promise<Json> {
+    return this.get("https://games.mobileapi.hupu.com/1/8.0.32/basketballapi/playerMatchStats", { matchId: game.id })
+  }
   async season(startYear: number, recent: Game[], progress?: (done: number, total: number) => void): Promise<Season> {
     const roster = new Map<string, Team>()
     for (const game of recent.filter(g => g.phase === "NBA常规赛")) for (const team of game.teams) roster.set(team.id, { ...team, score: null })

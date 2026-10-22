@@ -12,6 +12,17 @@ export async function cachedSeason(): Promise<Season | null> {
   const snapshot = await readCache<Season>(seasonKey())
   return snapshot?.value.season === `${expectedYear()}-${expectedYear() + 1}` ? snapshot.value : null
 }
+export async function rememberMatch(game: Game): Promise<void> {
+  const full = await cachedSeason()
+  if (full?.games.some(item => item.id === game.id)) {
+    await saveCache(seasonKey(), { ...full, games: full.games.map(item => item.id === game.id ? game : item) }, full.fetchedAt)
+  }
+  const recent = await readCache<Game[]>("recent")
+  if (recent?.value.some(item => item.id === game.id)) {
+    // Updating one match must not make every other cached game appear fresh.
+    await saveCache("recent", recent.value.map(item => item.id === game.id ? game : item), recent.fetchedAt)
+  }
+}
 export async function refreshSeason(progress?: (done: number, total: number) => void): Promise<Season> {
   const recent = await api.recent()
   const latest = recent.filter(g => g.status === "COMPLETED" && (g.ratingKey || g.itemKey)).sort((a, b) => b.time - a.time)[0]
