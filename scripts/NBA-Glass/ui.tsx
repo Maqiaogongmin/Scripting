@@ -1,5 +1,5 @@
 import { Device, HStack, Image, Text, VStack, ZStack, useColorScheme, type VirtualNode } from "scripting"
-import { beijingTime, type Game, type Team, type Comment } from "./runtime/hupu"
+import { beijingTime, commentText, type Game, type Team, type Comment } from "./runtime/hupu"
 
 export const palette = {
   light: { background: "#F2F4F7", surface: "#E8EDF3", primary: "#17212B", secondary: "#526174", accent: "#245AA6" },
@@ -43,6 +43,6 @@ export function CommentCard({ comment }: { comment: Comment }) {
   const c = colors()
   return <VStack alignment="leading" spacing={6} padding={{ vertical: 8 }}>
     <HStack><Text font="caption" foregroundStyle={c.secondary}>{comment.user}</Text><Text font="caption2" foregroundStyle={c.secondary}>{` · ${comment.likes} 赞${comment.date ? " · " + comment.date : ""}`}</Text></HStack>
-    <Text font="subheadline" foregroundStyle={c.primary}>{comment.text || "图片或附件评论，请打开原文查看"}</Text>
+    <Text font="subheadline" foregroundStyle={c.primary}>{commentText(comment.text) || "图片或附件评论，请打开原文查看"}</Text>
   </VStack>
 }

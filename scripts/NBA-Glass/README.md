@@ -1,8 +1,8 @@
 # NBA 赛程 · Glass
 
-v0.5.0 · 适用于 Scripting App
+v0.5.1 · 适用于 Scripting App
 
-[点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Freleases%2Fdownload%2Fnba-glass-v0.5.0%2FNBA-Glass.zip%3Fv%3D0.5.0%22%5D) · [版本下载](https://github.com/Maqiaogongmin/Scripting/releases/tag/nba-glass-v0.5.0)
+[点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Freleases%2Fdownload%2Fnba-glass-v0.5.1%2FNBA-Glass.zip%3Fv%3D0.5.1%22%5D) · [版本下载](https://github.com/Maqiaogongmin/Scripting/releases/tag/nba-glass-v0.5.1)
 
 NBA 赛程 · Glass 把整个赛季的赛程、球员评分和球迷评论放进同一个脚本。近日、赛季、组件三个底部标签，让查比赛和看赛后讨论各有位置；中性蓝灰玻璃界面兼顾清晰度和轻盈感。
 
@@ -11,6 +11,10 @@ NBA 赛程 · Glass 把整个赛季的赛程、球员评分和球迷评论放进
 - 比赛详情：切换两队及“评分 / 技术统计”，查看球员评分、评论和完整统计表；详情刷新直接更新本场比分与状态。
 - 桌面组件：小号突出单场，中号按日期分列，大号展示多场，超大号显示更多赛程；支持球队图标与比赛入口。
 - 本机缓存：再次打开可先显示已有数据；联网更新后替换缓存。
+
+## v0.5.1 修复
+
+过滤热评与最新评论中嵌入的咪咕推广数据，包括被来源截断的 JSON；已有缓存显示时同样清理，保留正常正文、换行和表情。
 
 ## 使用
 
@@ -28,4 +32,4 @@ NBA 赛程 · Glass 把整个赛季的赛程、球员评分和球迷评论放进
 
 数据接口研究参考：[hupuX](https://github.com/bidabrain/hupuX)、[flutter-template](https://github.com/dirkhe1051931999/flutter-template)。玻璃界面方向参考：[girigirilove Glass C](https://github.com/OkadaMei/Scripting)。
 
-本版本通过类型检查与 32 项自动检查；开发中依据用户 iPhone 截图迭代，最新组件视觉仍以设备实际显示为准。
+本版本通过类型检查与 40 项自动检查；开发中依据用户 iPhone 截图迭代，最新组件视觉仍以设备实际显示为准。

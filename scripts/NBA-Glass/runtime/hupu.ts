@@ -92,8 +92,32 @@ export function parseSchedule(payload: Json): Game[] {
   }
   return games
 }
+/** Remove the embedded video promotion, not arbitrary JSON or long user text. */
+export function commentText(value: unknown): string {
+  if (typeof value !== "string") return ""
+  const marker = /\{\s*"miguVideo"\s*:/g
+  let result = "", offset = 0, match: RegExpExecArray | null
+  while ((match = marker.exec(value))) {
+    result += value.slice(offset, match.index)
+    let depth = 0, quoted = false, escaped = false, end = value.length
+    for (let i = match.index; i < value.length; i++) {
+      const char = value[i]
+      if (quoted) {
+        if (escaped) escaped = false
+        else if (char === "\\") escaped = true
+        else if (char === '"') quoted = false
+      } else if (char === '"') quoted = true
+      else if (char === "{") depth++
+      else if (char === "}" && --depth === 0) { end = i + 1; break }
+    }
+    // Hupu can truncate the promotion mid-string: none of that tail is prose.
+    offset = end
+    marker.lastIndex = end
+  }
+  return (result + value.slice(offset)).trim()
+}
 function parseComment(raw: Json): Comment {
-  return { id: id(raw.commentId, "commentId"), subjectId: String(raw.subjectId ?? raw.commentKey?.subjectId ?? ""), user: String(raw.commentUserName ?? "虎扑用户"), text: String(raw.commentContent ?? ""), likes: count(raw.lightCount), date: String(raw.commentDate ?? "") }
+  return { id: id(raw.commentId, "commentId"), subjectId: String(raw.subjectId ?? raw.commentKey?.subjectId ?? ""), user: String(raw.commentUserName ?? "虎扑用户"), text: commentText(raw.commentContent), likes: count(raw.lightCount), date: String(raw.commentDate ?? "") }
 }
 
 export class Hupu {
