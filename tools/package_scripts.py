@@ -20,7 +20,7 @@ if not (source / 'index.tsx').is_file():
 files = sorted(p for p in source.rglob('*') if p.is_file()
                and not any(part.startswith('.') or part == 'node_modules'
                            for part in p.relative_to(source).parts)
-               and (p.suffix in ('.ts', '.tsx') or p.name == 'script.json'))
+               and (p.suffix in ('.ts', '.tsx') or p.name in ('script.json', 'LICENSE', 'LICENSE.douban-cli')))
 output = root / 'dist' / (source.name + '.zip')
 output.parent.mkdir(exist_ok=True)
 with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
