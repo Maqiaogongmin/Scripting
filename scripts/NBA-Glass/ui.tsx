@@ -20,9 +20,14 @@ export function Avatar({ url, name, size = 28 }: { url: string; name: string; si
   const fallback = <ZStack background={c.surface} frame={{ width: size, height: size }} clipShape="circle"><Text font="caption2" fontWeight="semibold" foregroundStyle={c.secondary}>{name.slice(0, 1)}</Text></ZStack>
   return url ? <Image imageUrl={url} placeholder={fallback} resizable scaleToFit frame={{ width: size, height: size }} clipShape="circle" accessibilityLabel={name} /> : fallback
 }
+export function TeamLogo({ url, name, size = 28 }: { url: string; name: string; size?: number }) {
+  const c = colors()
+  return url ? <Image imageUrl={url} resizable scaleToFit renderingMode="original" frame={{ width: size, height: size }} accessibilityLabel={name} />
+    : <Text font="caption2" foregroundStyle={c.secondary} frame={{ width: size, height: size }}>{name.slice(0, 1)}</Text>
+}
 export function TeamLabel({ team }: { team: Team }) {
   const c = colors()
-  return <HStack spacing={6}><Avatar url={team.logo} name={team.name} size={24} /><Text font="subheadline" fontWeight="semibold" foregroundStyle={c.primary} lineLimit={1}>{team.name}</Text></HStack>
+  return <HStack spacing={6}><TeamLogo url={team.logo} name={team.name} size={24} /><Text font="subheadline" fontWeight="semibold" foregroundStyle={c.primary} lineLimit={1}>{team.name}</Text></HStack>
 }
 export function MatchRow({ game, compact = false }: { game: Game; compact?: boolean }) {
   const c = colors()
@@ -30,7 +35,7 @@ export function MatchRow({ game, compact = false }: { game: Game; compact?: bool
   const score = a.score != null && b.score != null && game.status !== "NOTSTARTED" ? `${a.score} : ${b.score}` : beijingTime(game.time)
   return <HStack spacing={8} frame={{ maxWidth: "infinity" }}>
     <VStack alignment="leading" spacing={3} frame={{ maxWidth: "infinity", alignment: "leading" }}>
-      {compact ? <HStack spacing={4}><Avatar url={a.logo} name={a.name} size={18} /><Text font="caption" foregroundStyle={c.primary} lineLimit={1}>{a.name}</Text><Text font="caption2" foregroundStyle={c.secondary}>·</Text><Avatar url={b.logo} name={b.name} size={18} /><Text font="caption" foregroundStyle={c.primary} lineLimit={1}>{b.name}</Text></HStack> : <HStack spacing={5}><TeamLabel team={a} /><Text font="caption" foregroundStyle={c.secondary}>·</Text><TeamLabel team={b} /></HStack>}
+      {compact ? <HStack spacing={4}><TeamLogo url={a.logo} name={a.name} size={18} /><Text font="caption" foregroundStyle={c.primary} lineLimit={1}>{a.name}</Text><Text font="caption2" foregroundStyle={c.secondary}>·</Text><TeamLogo url={b.logo} name={b.name} size={18} /><Text font="caption" foregroundStyle={c.primary} lineLimit={1}>{b.name}</Text></HStack> : <HStack spacing={5}><TeamLabel team={a} /><Text font="caption" foregroundStyle={c.secondary}>·</Text><TeamLabel team={b} /></HStack>}
       {!compact ? <Text font="caption" foregroundStyle={c.secondary}>{game.phase}</Text> : null}
     </VStack>
     <VStack alignment="trailing" spacing={3}>

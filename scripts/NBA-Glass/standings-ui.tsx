@@ -3,7 +3,7 @@ import { readCache, saveCache, type Snapshot } from "./runtime/cache"
 import { beijingDate, beijingTime } from "./runtime/hupu"
 import { expectedYear } from "./runtime/service"
 import { parseStandings, type Conference, type Standings } from "./runtime/standings"
-import { Avatar, colors } from "./ui"
+import { TeamLogo, colors } from "./ui"
 
 export function StandingsPage({ active, switcher, close }: { active: boolean; switcher: VirtualNode; close: () => void }) {
   const c = colors()
@@ -65,7 +65,7 @@ export function StandingsPage({ active, switcher, close }: { active: boolean; sw
         {snapshot.value[conference].map(team => <HStack key={team.id} spacing={6} frame={{ minHeight: 36 }}>
           {cell(String(team.rank), 26)}
           <HStack spacing={5} frame={{ maxWidth: "infinity", alignment: "leading" }}>
-            <Avatar url={team.logo} name={team.name} size={23} />
+            <TeamLogo url={team.logo} name={team.name} size={28} />
             <Text font="subheadline" fontWeight="semibold" foregroundStyle={c.primary} lineLimit={1}>{team.name}</Text>
           </HStack>
           {cell(String(team.wins), 22)}{cell(String(team.losses), 22)}

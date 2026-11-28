@@ -1,9 +1,10 @@
-import { Button, Chart, Divider, HStack, LineChart, ScrollView, Picker, ProgressView, Text, VStack, useEffect, useRef, useState } from "scripting"
+import { Button, DisclosureGroup, Divider, HStack, ScrollView, Picker, ProgressView, Text, VStack, useEffect, useRef, useState } from "scripting"
 import { api } from "./runtime/client"
 import { readCache, saveCache } from "./runtime/cache"
 import { expectedYear } from "./runtime/service"
-import { careerPlayerSeasons, playerBio, playerNumbers, recentPlayerGames, type PlayerMetric, type PlayerProfileData, type PlayerTrend } from "./runtime/player"
+import { careerPlayerSeasons, playerBio, playerNumbers, type PlayerMetric, type PlayerProfileData, type PlayerSeason } from "./runtime/player"
 import { Avatar, colors, Surface } from "./ui"
+import { ShootingMap } from "./shooting-ui"
 
 export type PlayerIdentity = { id: string; name: string; avatar: string }
 
@@ -62,33 +63,23 @@ function Shooting({ metrics, career }: { metrics: PlayerMetric[]; career: boolea
   </VStack></Surface> : null
 }
 
-function Trend({ rows, career }: { rows: PlayerTrend[]; career: boolean }) {
+function SeasonHistory({ rows, player, refreshing }: { rows: PlayerSeason[]; player: PlayerIdentity; refreshing: boolean }) {
   const c = colors()
-  const [stat, setStat] = useState("pts")
-  const metric = stat === "reb" ? "reb" : stat === "ast" ? "ast" : "pts"
-  const labels = rows.map(row => row.label)
-  return <Surface><VStack alignment="leading" spacing={16} fixedSize={{ horizontal: false, vertical: true }}>
-    <Text font="headline" foregroundStyle={c.primary}>{career ? "历季场均" : "近十次出场"}</Text>
-    <Picker title="走势指标" pickerStyle="segmented" value={stat} onChanged={setStat}>
-      <Text tag="pts">得分</Text><Text tag="reb">篮板</Text><Text tag="ast">助攻</Text>
-    </Picker>
-    <Chart frame={{ height: 210 }} chartXScale={labels} chartXAxis="hidden" chartLegend="hidden">
-      <LineChart marks={rows.map(row => ({ label: row.label, value: row[metric], foregroundStyle: c.accent, symbol: "circle" }))} />
-    </Chart>
-    <HStack>
-      <Text font="caption2" foregroundStyle={c.secondary} frame={{ maxWidth: "infinity", alignment: "leading" }}>{labels[0]}</Text>
-      <Text font="caption2" foregroundStyle={c.secondary}>{labels.at(-1) ?? ""}</Text>
-    </HStack>
-    <Divider />
-    <HStack spacing={6}>
-      <Text font="caption" foregroundStyle={c.secondary} frame={{ maxWidth: "infinity", alignment: "leading" }}>{career ? "赛季 · 出场" : "日期 · 对手"}</Text>
-      {["得分", "篮板", "助攻"].map(label => <Text key={label} font="caption" foregroundStyle={c.secondary} frame={{ width: 38, alignment: "trailing" }}>{label}</Text>)}
-    </HStack>
-    {[...rows].reverse().map(row => <HStack key={row.label} spacing={6}>
-      <Text font="caption" foregroundStyle={c.primary} fixedSize={{ horizontal: false, vertical: true }} frame={{ maxWidth: "infinity", alignment: "leading" }}>{`${row.label} · ${row.detail}`}</Text>
-      {(["pts", "reb", "ast"] as const).map(key => <Text key={key} font="caption" foregroundStyle={key === metric ? c.accent : c.primary} monospacedDigit frame={{ width: 38, alignment: "trailing" }}>{career ? row[key].toFixed(1) : String(row[key])}</Text>)}
-    </HStack>)}
-  </VStack></Surface>
+  const [selected, setSelected] = useState("")
+  const label = rows.some(row => row.label === selected) ? selected : rows.at(-1)?.label ?? ""
+  const row = rows.find(item => item.label === label)
+  const shortYear = Number(label.slice(0, 2))
+  const year = shortYear + (shortYear > expectedYear() % 100 ? 1900 : 2000)
+  return row ? <VStack spacing={16}>
+    <Surface><HStack>
+      <Text font="headline" foregroundStyle={c.primary} frame={{ maxWidth: "infinity", alignment: "leading" }}>历季数据 · 常规赛</Text>
+      <Picker title="赛季" value={label} onChanged={setSelected} pickerStyle="menu">
+        {[...rows].reverse().map(item => <Text key={item.label} tag={item.label}>{item.label}</Text>)}
+      </Picker>
+    </HStack></Surface>
+    <StatList title={`${label} 赛季 · 场均`} metrics={row.metrics ?? []} career={false} />
+    <ShootingMap key={`${player.id}-${year}`} player={player} year={year} refreshing={refreshing} />
+  </VStack> : null
 }
 
 export function PlayerProfile({ player }: { player: PlayerIdentity }) {
@@ -109,18 +100,17 @@ export function PlayerProfile({ player }: { player: PlayerIdentity }) {
       const prior = (await readCache<PlayerProfileData>(key))?.value ?? {}
       const previous = { ...prior, ...data }
       setData(previous)
-      const [bio, season, career, recent, history] = await Promise.allSettled([
+      const [bio, season, career, history] = await Promise.allSettled([
         playerBio(api, player.id), playerNumbers(api, player.id, year, false), playerNumbers(api, player.id, year, true),
-        recentPlayerGames(api, player.id, year), careerPlayerSeasons(api, player.id),
+        careerPlayerSeasons(api, player.id),
       ])
       const updated = { ...previous }
       if (bio.status === "fulfilled") updated.bio = bio.value
       if (season.status === "fulfilled") updated.season = season.value
       if (career.status === "fulfilled") updated.career = career.value
-      if (recent.status === "fulfilled") updated.recent = recent.value
       if (history.status === "fulfilled") updated.history = history.value
       setData(updated)
-      const results = [bio, season, career, recent, history]
+      const results = [bio, season, career, history]
       if (results.some(result => result.status === "fulfilled")) {
         await saveCache(key, updated)
       }
@@ -138,7 +128,6 @@ export function PlayerProfile({ player }: { player: PlayerIdentity }) {
   const base = stats.filter(stat => !stat.group)
   const extra = stats.filter(stat => stat.group)
   const shooting = base.filter(stat => ["投篮命中率", "三分命中率", "罚球命中率"].includes(stat.title))
-  const trend = career ? data.history : data.recent
   const headline = base.filter(stat => (career ? ["总得分", "总篮板", "总助攻"] : ["场均得分", "场均篮板", "场均助攻"]).includes(stat.title))
   const other = base.filter(stat => !headline.includes(stat) && !shooting.includes(stat))
   return <ScrollView navigationTitle="球员资料" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background}
@@ -156,6 +145,11 @@ export function PlayerProfile({ player }: { player: PlayerIdentity }) {
         {bio ? <VStack alignment="leading" spacing={8}>
           <Text font="subheadline" foregroundStyle={c.primary}>{[bio.age, bio.height, bio.weight].filter(Boolean).join(" · ")}</Text>
           <Text font="caption" foregroundStyle={c.secondary} fixedSize={{ horizontal: false, vertical: true }}>{`选秀 ${bio.draft}`}</Text>
+          {bio.salary ? <HStack spacing={10}>
+            <Text font="subheadline" foregroundStyle={c.primary}>{`年薪 ${(bio.salary / 10000).toLocaleString("zh-CN", { maximumFractionDigits: 1 })} 万美元`}</Text>
+            {bio.salaryRank ? <Text font="caption" foregroundStyle={c.accent}>{`联盟第 ${bio.salaryRank}`}</Text> : null}
+          </HStack> : null}
+          {bio.contract ? <DisclosureGroup title="合同明细"><Text font="caption" foregroundStyle={c.secondary} fixedSize={{ horizontal: false, vertical: true }} frame={{ maxWidth: "infinity", alignment: "leading" }}>{bio.contract}</Text></DisclosureGroup> : null}
           {[bio.birthday ? `生日 ${bio.birthday}` : "", bio.country ? `国籍 ${bio.country}` : "", bio.school ? `学校 ${bio.school}` : ""].filter(Boolean).map(text => <Text key={text} font="caption" foregroundStyle={c.secondary} fixedSize={{ horizontal: false, vertical: true }}>{text}</Text>)}
         </VStack> : null}
       </VStack></Surface>
@@ -166,11 +160,11 @@ export function PlayerProfile({ player }: { player: PlayerIdentity }) {
         <Text font="headline" foregroundStyle={c.primary}>{career ? "生涯累计 · 常规赛" : `${year}–${String(year + 1).slice(-2)} 常规赛 · 场均`}</Text>
         <HStack alignment="top" spacing={12}>{headline.map(stat => <StatValue key={stat.title} stat={stat} career={career} prominent />)}</HStack>
       </VStack></Surface> : null}
-      {shooting.length ? <Shooting metrics={shooting} career={career} /> : null}
-      {trend?.length ? <Trend key={mode} rows={trend} career={career} /> : null}
+      {!career && shooting.length ? <Shooting metrics={shooting} career={false} /> : null}
+      {career && data.history?.length ? <SeasonHistory rows={data.history} player={player} refreshing={busy} /> : null}
       <StatList title={career ? "生涯累计 · 常规赛" : "基础数据 · 常规赛"} metrics={other} career={career} />
       <StatList title={career ? "生涯单场最高 · 常规赛" : "进阶数据 · 常规赛"} metrics={extra} career={career} />
-      {!busy && !base.length && !trend?.length && !error ? <Text foregroundStyle={c.secondary}>暂无统计</Text> : null}
+      {!busy && !base.length && !data.history?.length && !error ? <Text foregroundStyle={c.secondary}>暂无统计</Text> : null}
       <Text font="caption2" foregroundStyle={c.secondary}>虎扑</Text>
     </VStack>
   </ScrollView>

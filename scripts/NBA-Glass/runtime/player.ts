@@ -4,11 +4,15 @@ const endpoint = "https://games.mobileapi.hupu.com/1/8.0.32/basketballapi/"
 export type PlayerBio = {
   name: string; avatar: string; team: string; position: string; height: string; weight: string; draft: string
   age?: string; birthday?: string; country?: string; school?: string; number?: string; englishName?: string
+  salary?: number; salaryRank?: number; contract?: string
 }
 export type PlayerMetric = { title: string; value: string; rank?: number; group?: "advanced" | "highs" }
 export type PlayerTrend = { label: string; detail: string; pts: number; reb: number; ast: number }
+export type PlayerSeason = PlayerTrend & { metrics: PlayerMetric[] }
+export type ShotArea = { id: number; made: number; attempts: number; level: number }
+export type ShotMap = { year: number; areas: ShotArea[]; updated: string }
 export type PlayerProfileData = {
-  bio?: PlayerBio | null; season?: PlayerMetric[]; career?: PlayerMetric[]; recent?: PlayerTrend[]; history?: PlayerTrend[]
+  bio?: PlayerBio | null; season?: PlayerMetric[]; career?: PlayerMetric[]; history?: PlayerSeason[]
 }
 
 function playerResult(payload: Json, playerId: string): Json | null {
@@ -33,6 +37,9 @@ export async function playerBio(api: Hupu, playerId: string): Promise<PlayerBio 
     age: player.age ? `${player.age} 岁` : undefined, birthday: player.birth_date || undefined,
     country: player.country || undefined, school: player.college_school || player.high_school || undefined,
     number: player.number == null ? undefined : String(player.number), englishName: player.eng_name || undefined,
+    salary: Number.isFinite(player.salary) && player.salary > 0 ? player.salary : undefined,
+    salaryRank: Number.isInteger(player.salaryRank) && player.salaryRank > 0 ? player.salaryRank : undefined,
+    contract: typeof player.contractDetails === "string" ? player.contractDetails.replace(/\n#/g, "\n").trim() : undefined,
   }
 }
 
@@ -131,21 +138,56 @@ export async function recentPlayerGames(api: Hupu, playerId: string, year: numbe
     .slice(-10)
 }
 
-export async function careerPlayerSeasons(api: Hupu, playerId: string): Promise<PlayerTrend[]> {
+export async function careerPlayerSeasons(api: Hupu, playerId: string): Promise<PlayerSeason[]> {
   const result = playerResult(await api.get(endpoint + "playerAllSeasonStats", { playerId, ...nba }), playerId)
   const table = result?.competitionStageMap?.REGULAR?.statsClassifyMap?.SUM
-  const totals = new Map<string, { games: number; pts: number; reb: number; ast: number }>()
+  const totals = new Map<string, { games: number; pts: number; reb: number; ast: number; rows: Record<string, string>[] }>()
   for (const row of tableRows(table)) {
     const season = row.seasonWrapper
     if (!/^\d{2}-\d{2}$/.test(season)) continue
     const games = number(row.gamesPack?.split("/").at(-1))
     const pts = number(row["model.basic.pts"]), reb = number(row["model.basic.reb"]), ast = number(row["model.basic.ast"])
     if (games <= 0 || ![games, pts, reb, ast].every(Number.isFinite)) continue
-    const current = totals.get(season) ?? { games: 0, pts: 0, reb: 0, ast: 0 }
-    totals.set(season, { games: current.games + games, pts: current.pts + pts, reb: current.reb + reb, ast: current.ast + ast })
+    const current = totals.get(season) ?? { games: 0, pts: 0, reb: 0, ast: 0, rows: [] }
+    totals.set(season, { games: current.games + games, pts: current.pts + pts, reb: current.reb + reb, ast: current.ast + ast, rows: [...current.rows, row] })
   }
   // The source orders seasons from newest to oldest and supplies one row per team stint.
-  return [...totals].reverse().map(([label, row]) => ({
-    label, detail: `${row.games} 场`, pts: row.pts / row.games, reb: row.reb / row.games, ast: row.ast / row.games,
-  }))
+  return [...totals].reverse().map(([label, row]) => {
+    function sum(field: string): number {
+      const values = row.rows.map(item => number(item[field]))
+      return values.every(Number.isFinite) ? values.reduce((a, b) => a + b, 0) : NaN
+    }
+    const metrics: PlayerMetric[] = [{ title: "出场", value: String(row.games) }]
+    const starts = row.rows.map(item => number(item.gamesPack?.split("/")[0]))
+    metrics.push({ title: "首发", value: starts.every(Number.isFinite) ? String(starts.reduce((a, b) => a + b, 0)) : "—" })
+    for (const [field, title] of [["min", "场均时间（分钟）"], ["pts", "场均得分"], ["reb", "场均篮板"], ["ast", "场均助攻"], ["stl", "场均抢断"], ["blk", "场均盖帽"], ["to", "场均失误"], ["oreb", "场均前场篮板"], ["dreb", "场均后场篮板"], ["pf", "场均犯规"]]) {
+      const value = sum(`model.basic.${field}`) / row.games
+      metrics.push({ title, value: Number.isFinite(value) ? value.toFixed(1) : "—" })
+    }
+    for (const [field, title] of [["fgSumPack", "投篮"], ["tpSumPack", "三分"], ["ftSumPack", "罚球"]]) {
+      const pairs = row.rows.map(item => /^\d+\/\d+$/.test(item[field] ?? "") ? item[field].split("/").map(Number) : null)
+      const valid = pairs.every(pair => pair && pair[0] <= pair[1])
+      const made = valid ? pairs.reduce((sum, pair) => sum + pair![0], 0) : NaN
+      const attempts = valid ? pairs.reduce((sum, pair) => sum + pair![1], 0) : NaN
+      metrics.push({ title: `场均${title}命中 / 出手`, value: valid ? `${(made / row.games).toFixed(1)} / ${(attempts / row.games).toFixed(1)}` : "—" })
+      metrics.push({ title: `${title}命中率`, value: attempts > 0 ? `${(100 * made / attempts).toFixed(1)}%` : "—" })
+    }
+    return { label, detail: `${row.games} 场`, pts: row.pts / row.games, reb: row.reb / row.games, ast: row.ast / row.games, metrics }
+  })
+}
+
+export async function playerShotMap(api: Hupu, playerId: string, year: number): Promise<ShotMap | null> {
+  const season = `${year}-${year + 1}`
+  const result = playerResult(await api.get(endpoint + "shootHotMap", { playerId, ...nba, season, competitionStageType: "REGULAR" }), playerId)
+  if (!result) return null
+  const scope = result.competitionSeasonStageType
+  if (scope?.competitionSeasonType?.season !== season || scope?.competitionStageTypeName !== "REGULAR") throw new Error("投篮热区赛季不匹配")
+  if (!Array.isArray(result.shootAreaDTOList) || !result.shootAreaDTOList.length) return null
+  const areas: ShotArea[] = result.shootAreaDTOList.map((item: Json) => {
+    const id = Number(item.areaId), made = Number(item.fgm), attempts = Number(item.fgs)
+    if (!Number.isInteger(id) || id < 1 || id > 14 || !/^\d+$/.test(String(item.fgm)) || !/^\d+$/.test(String(item.fgs)) || made > attempts) throw new Error("投篮热区数据不完整")
+    return { id, made, attempts, level: Number(item.level) }
+  })
+  if (areas.length !== 14 || new Set(areas.map(area => area.id)).size !== 14) throw new Error("投篮热区区域不完整")
+  return { year, areas: areas.sort((a, b) => a.id - b.id), updated: typeof result.last_update === "string" ? result.last_update : "" }
 }
