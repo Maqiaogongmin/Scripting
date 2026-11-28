@@ -6,7 +6,7 @@ import { initialSelection } from "./runtime/selection"
 import { beijingDate, mergeSchedule, nextDays, type Board, type Comment, type Game, type Player, type Season } from "./runtime/hupu"
 import { parseBoxScore, type BoxScore } from "./runtime/boxscore"
 import { StatsTable } from "./boxscore-ui"
-import { PlayerLink } from "./player-ui"
+import { PlayerButton, PlayerProfile, type PlayerIdentity } from "./player-ui"
 import { StandingsPage } from "./standings-ui"
 import { colors, CommentCard, MatchRow, Surface } from "./ui"
 
@@ -49,6 +49,8 @@ function Detail({ game, onUpdated }: { game: Game; onUpdated?: (game: Game) => v
   const [statsError, setStatsError] = useState("")
   const loading = useRef(false)
   const statsLoading = useRef(false)
+  const [destination, setDestination] = useState<{ kind: "profile"; player: PlayerIdentity } | { kind: "comments"; player: Player } | null>(null)
+  function openPlayer(player: PlayerIdentity) { setDestination({ kind: "profile", player }) }
   async function loadStats(match: Game) {
     if (statsLoading.current) return
     statsLoading.current = true; setStatsBusy(true); setStatsError("")
@@ -92,25 +94,30 @@ function Detail({ game, onUpdated }: { game: Game; onUpdated?: (game: Game) => v
   return <VStack spacing={8} navigationTitle="比赛详情" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={{ primaryAction: <Button title="刷新" action={load} disabled={busy || statsBusy} /> }}>
     <Picker title="内容" value={mode} onChanged={(value: string) => { setMode(value); if (value === "技术统计" && !box) void loadStats(current) }} pickerStyle="segmented" padding={{ horizontal: 20 }}><Text tag="评分">评分</Text><Text tag="技术统计">技术统计</Text></Picker>
     <Picker title="球队" value={team} onChanged={setTeam} pickerStyle="segmented" padding={{ horizontal: 20 }}>{current.teams.map(t => <Text key={t.id} tag={t.id}>{t.name}</Text>)}</Picker>
-    <List listStyle="plain" scrollContentBackground="hidden">
+    <List listStyle="plain" scrollContentBackground="hidden" navigationDestination={{
+      isPresented: destination !== null,
+      onChanged: visible => { if (!visible) setDestination(null) },
+      content: destination?.kind === "profile" ? <PlayerProfile player={destination.player} />
+        : destination?.kind === "comments" ? <PlayerComments player={destination.player} /> : <Text>球员资料</Text>,
+    }}>
       <Surface><Text font="caption" foregroundStyle={c.secondary}>{current.date}</Text><MatchRow game={current} /></Surface>
       {busy ? <ProgressView /> : null}
       {error ? <Text font="caption" foregroundStyle={c.secondary}>{error}</Text> : null}
       {mode === "技术统计" ? <VStack spacing={8}>
         {statsBusy ? <ProgressView /> : null}
         {statsError ? <VStack><Text font="caption" foregroundStyle={c.secondary}>{statsError}</Text><Button title="重试统计" buttonStyle="bordered" action={() => loadStats(current)} /></VStack> : null}
-        {box ? <StatsTable box={box} teamId={team} /> : !statsBusy && !statsError ? <Text foregroundStyle={c.secondary}>暂无技术统计</Text> : null}
+        {box ? <StatsTable box={box} teamId={team} onPlayer={openPlayer} /> : !statsBusy && !statsError ? <Text foregroundStyle={c.secondary}>暂无技术统计</Text> : null}
       </VStack> : <Section>
         {!busy && !board && !error ? <Text foregroundStyle={c.secondary}>暂无评分</Text> : null}
         {players.map(player => <Surface key={player.key.outBizNo}>
           <HStack spacing={12} frame={{ maxWidth: "infinity" }}>
             <VStack alignment="leading" frame={{ maxWidth: "infinity", alignment: "leading" }}>
-              <PlayerLink player={player} subtitle={player.stats} />
+              <PlayerButton player={player} subtitle={player.stats} onOpen={openPlayer} />
             </VStack>
             <VStack alignment="trailing"><Text font="title2" fontWeight="bold" foregroundStyle={c.accent}>{player.rating == null ? "待评分" : player.rating.toFixed(1)}</Text><Text font="caption2" foregroundStyle={c.secondary}>{`${player.raters.toLocaleString()} 人评分`}</Text></VStack>
           </HStack>
           <VStack alignment="leading">{player.hotComments.map(comment => <CommentCard key={comment.id} comment={comment} />)}</VStack>
-          <NavigationLink destination={<PlayerComments player={player} />} buttonStyle="plain"><Text foregroundStyle={c.accent}>{`最新评论（${player.commentCount.toLocaleString()}）`}</Text></NavigationLink>
+          <Button action={() => setDestination({ kind: "comments", player })} buttonStyle="plain"><Text foregroundStyle={c.accent}>{`最新评论（${player.commentCount.toLocaleString()}）`}</Text></Button>
         </Surface>)}
         {board && !busy && !players.length ? <Text>暂无球员评分</Text> : null}
       </Section>}

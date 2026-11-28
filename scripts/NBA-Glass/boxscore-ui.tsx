@@ -1,9 +1,9 @@
 import { HStack, ScrollView, Text, VStack } from "scripting"
 import { statColumns, type BoxScore } from "./runtime/boxscore"
-import { PlayerLink } from "./player-ui"
+import { PlayerButton, type PlayerIdentity } from "./player-ui"
 import { colors } from "./ui"
 
-export function StatsTable({ box, teamId }: { box: BoxScore; teamId: string }) {
+export function StatsTable({ box, teamId, onPlayer }: { box: BoxScore; teamId: string; onPlayer: (player: PlayerIdentity) => void }) {
   const c = colors()
   const team = box.teams.find(item => item.id === teamId)
   if (!team?.players.length) return <Text foregroundStyle={c.secondary}>暂无技术统计</Text>
@@ -16,7 +16,7 @@ export function StatsTable({ box, teamId }: { box: BoxScore; teamId: string }) {
     <VStack alignment="leading" spacing={0} frame={{ width: 112 }}>
       <Text font="caption2" foregroundStyle={c.secondary} frame={{ width: 112, height: 34, alignment: "leading" }}>球员</Text>
       {team.players.map((player, i) => <VStack key={player.id} alignment="leading" padding={{ horizontal: 3 }} frame={{ width: 112, height: 48, alignment: "leading" }} background={i % 2 === 0 ? c.surface : c.background}>
-        <PlayerLink player={player} compact subtitle={`#${player.number}${player.starter ? " · 先发" : ""}`} />
+        <PlayerButton player={player} compact onOpen={onPlayer} subtitle={`#${player.number}${player.starter ? " · 先发" : ""}`} />
       </VStack>)}
       <Text font="caption" fontWeight="semibold" foregroundStyle={c.primary} frame={{ width: 112, height: 48, alignment: "leading" }} background={c.surface}>{team.totalsLabel}</Text>
     </VStack>
