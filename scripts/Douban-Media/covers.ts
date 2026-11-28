@@ -1,5 +1,5 @@
 import { Widget, fetch } from "scripting"
-import { getDetail, subjectKey, type CoverEntry, type SubjectRef } from "./douban"
+import { getDetail, subjectKey, type CoverEntry, type Detail, type SubjectRef } from "./douban"
 
 const referer = "https://m.douban.com/"
 const images = new Map<string, Promise<UIImage>>()
@@ -37,12 +37,13 @@ export function loadImage(url: string): Promise<UIImage> {
 export type CoverList = { items: CoverEntry[]; index: number }
 const directory = () => `${FileManager.appGroupDocumentsDirectory}/douban-media`
 const manifest = () => `${directory()}/widget-covers.json`
-export const thumbnailPath = (entry: SubjectRef) =>
-  `${directory()}/${entry.type}-${entry.id}.jpg`
+type ThumbnailVariant = "poster" | "wide"
+const thumbnailPath = (entry: SubjectRef, variant: ThumbnailVariant = "poster") =>
+  `${directory()}/${entry.type}-${entry.id}${variant === "wide" ? "-wide" : ""}.jpg`
 
-export async function readThumbnail(entry: SubjectRef): Promise<UIImage | undefined> {
+export async function readThumbnail(entry: SubjectRef, variant: ThumbnailVariant = "poster"): Promise<UIImage | undefined> {
   try {
-    return UIImage.fromData(await FileManager.readAsData(thumbnailPath(entry)), 1) ?? undefined
+    return UIImage.fromData(await FileManager.readAsData(thumbnailPath(entry, variant)), 1) ?? undefined
   } catch {
     return undefined
   }
@@ -67,7 +68,7 @@ function updateCovers(change: (current: CoverList) => CoverList | undefined): Pr
   return write
 }
 
-async function saveThumbnail(entry: CoverEntry, image: UIImage) {
+async function saveThumbnail(path: string, image: UIImage) {
   const scale = Math.min(1, 720 / Math.max(image.width, image.height))
   const thumb = scale === 1 ? image : image.preparingThumbnail({
     width: Math.max(1, Math.round(image.width * scale)),
@@ -76,16 +77,23 @@ async function saveThumbnail(entry: CoverEntry, image: UIImage) {
   const jpeg = thumb?.toJPEGData(0.85)
   if (!jpeg) throw new Error("Could not create thumbnail")
   await FileManager.createDirectory(directory(), true)
-  await FileManager.writeAsData(thumbnailPath(entry), jpeg)
+  await FileManager.writeAsData(path, jpeg)
 }
 
 const same = (a: SubjectRef, b: SubjectRef) => subjectKey(a) === subjectKey(b)
 
-export async function addCover({ type, id, title, rating, coverUrl, subtitle }: CoverEntry): Promise<CoverList> {
-  const entry = { type, id, title, rating, coverUrl, subtitle }
+async function saveWideThumbnail(entry: SubjectRef, url?: string) {
+  if (!url) return
+  const image = await downloadImage(url)
+  if (image.width > image.height) await saveThumbnail(thumbnailPath(entry, "wide"), image)
+}
+
+export async function addCover({ type, id, title, rating, coverUrl, subtitle, intro, wideCoverUrl }: Detail): Promise<CoverList> {
+  const entry = { type, id, title, rating, coverUrl, subtitle, intro }
   const current = await readCovers()
   if (!current.items.some(item => same(item, entry))) {
-    await saveThumbnail(entry, await loadImage(coverUrl))
+    await saveThumbnail(thumbnailPath(entry), await loadImage(coverUrl))
+    await saveWideThumbnail(entry, wideCoverUrl).catch(() => undefined)
   }
   return updateCovers(list => {
     const index = list.items.findIndex(item => same(item, entry))
@@ -103,15 +111,19 @@ export async function removeCover(entry: SubjectRef): Promise<CoverList> {
     const nextIndex = removed < index ? index - 1 : Math.min(index, remaining.length - 1)
     return { items: remaining, index: Math.max(0, nextIndex) }
   })
-  if (await FileManager.exists(thumbnailPath(entry))) await FileManager.remove(thumbnailPath(entry))
+  for (const variant of ["poster", "wide"] as const) {
+    const path = thumbnailPath(entry, variant)
+    if (await FileManager.exists(path)) await FileManager.remove(path)
+  }
   return updated
 }
 
 export async function refreshCover(entry: CoverEntry): Promise<CoverList> {
-  const { type, id, title, rating, coverUrl, subtitle } = await getDetail(entry)
-  const updated = { type, id, title, rating, coverUrl, subtitle }
+  const { type, id, title, rating, coverUrl, subtitle, intro, wideCoverUrl } = await getDetail(entry)
+  const updated = { type, id, title, rating, coverUrl, subtitle, intro }
   const image = await downloadImage(coverUrl)
-  await saveThumbnail(updated, image)
+  await saveThumbnail(thumbnailPath(updated), image)
+  await saveWideThumbnail(updated, wideCoverUrl).catch(() => undefined)
   images.set(coverUrl, Promise.resolve(image))
   return updateCovers(({ items, index }) => ({
     items: items.map(item => same(item, entry) ? updated : item),

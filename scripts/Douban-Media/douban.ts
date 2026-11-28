@@ -5,7 +5,9 @@ import { fetch } from "scripting"
 export type Scope = "movie" | "book" | "music"
 export type SubjectType = Scope | "tv"
 export type SubjectRef = { type: SubjectType; id: string }
-export type CoverEntry = SubjectRef & { title: string; rating: number; coverUrl: string; subtitle?: string }
+export type CoverEntry = SubjectRef & {
+  title: string; rating: number; coverUrl: string; subtitle?: string; intro?: string
+}
 export type SearchItem = CoverEntry & { subtitle: string }
 export type CreditKind = "celebrity" | "author" | "query"
 export type CreditPerson = { name: string; role: string; avatarUrl: string; bio?: string } & (
@@ -15,6 +17,7 @@ export type WorksTarget = CreditPerson | { kind: "series"; id: string; name: str
 type Fact = { label: string; value: string; action?: WorksTarget }
 export type Detail = CoverEntry & {
   ratingCount?: number
+  wideCoverUrl?: string
   year: string
   originalUrl: string
   intro: string
@@ -142,6 +145,9 @@ export async function getDetail(subject: SubjectRef): Promise<Detail> {
   if (!title || idText(data.id) !== id) throw new Error("Invalid Douban subject")
   const rating = record(data.rating)
   const pic = record(data.pic)
+  const wideCoverUrl = type === "movie" || type === "tv"
+    ? list(data.trailers).map(item => imageUrl(record(item).cover_url)).find(Boolean)
+    : undefined
   const episodes = type === "tv" ? Math.floor(number(data.episodes_count) ?? 0) : 0
   const year = releaseYear(data.year) || releaseYear(data.pubdate)
   let subtitle: string
@@ -174,7 +180,7 @@ export async function getDetail(subject: SubjectRef): Promise<Detail> {
   }).sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity)) : []
   return {
     ...subject,
-    title, year, subtitle,
+    title, year, subtitle, wideCoverUrl,
     rating: number(rating.value) ?? 0,
     ratingCount: number(rating.count),
     coverUrl: imageUrl(pic.large) || imageUrl(data.cover_url) || imageUrl(pic.normal),
