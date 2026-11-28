@@ -1,7 +1,10 @@
 import type { Hupu, Json } from "./hupu"
 
 const endpoint = "https://games.mobileapi.hupu.com/1/8.0.32/basketballapi/"
-export type PlayerBio = { name: string; avatar: string; team: string; position: string; height: string; weight: string; draft: string }
+export type PlayerBio = {
+  name: string; avatar: string; team: string; position: string; height: string; weight: string; draft: string
+  age?: string; birthday?: string; country?: string; school?: string; number?: string; englishName?: string
+}
 export type PlayerMetric = { title: string; value: string; rank?: number; group?: "advanced" | "highs" }
 export type PlayerTrend = { label: string; detail: string; pts: number; reb: number; ast: number }
 export type PlayerProfileData = {
@@ -27,31 +30,45 @@ export async function playerBio(api: Hupu, playerId: string): Promise<PlayerBio 
     name: player.name || "", avatar: String(player.big_photo || player.photo || "").replace(/^http:\/\//, "https://"),
     team: player.teamName || "", position: player.position || "",
     height: height > 0 ? `${Math.round(height * 100)} cm` : "—", weight: weight > 0 ? `${weight} kg` : "—", draft,
+    age: player.age ? `${player.age} 岁` : undefined, birthday: player.birth_date || undefined,
+    country: player.country || undefined, school: player.college_school || player.high_school || undefined,
+    number: player.number == null ? undefined : String(player.number), englishName: player.eng_name || undefined,
   }
 }
 
 const seasonColumns = [
   ["ptsAvg", "场均得分"], ["rebAvg", "场均篮板"], ["astAvg", "场均助攻"],
   ["fgp", "投篮命中率"], ["tpp", "三分命中率"], ["ftp", "罚球命中率"],
-  ["minAvg", "场均时间"], ["stlAvg", "场均抢断"], ["blkAvg", "场均盖帽"],
+  ["minAvg", "场均时间（分钟）"], ["stlAvg", "场均抢断"], ["blkAvg", "场均盖帽"],
   ["toAvg", "场均失误"], ["orebAvg", "场均前场篮板"], ["drebAvg", "场均后场篮板"],
   ["tpmAvg", "场均三分命中"], ["plusMinusAvg", "场均正负值"], ["pfAvg", "场均犯规"],
   ["dd", "两双"], ["td", "三双"],
+  ["tpm", "三分总命中数"], ["ptsOffTovAvg", "场均利用失误得分"], ["ptsInPaintsAvg", "场均内线得分"],
+  ["fgpInPaints", "内线命中率"], ["ptsSecondChanceAvg", "场均二次进攻得分"], ["fgpSecondChance", "二次进攻命中率"],
+  ["ptsFastBreakAvg", "场均快攻得分"], ["fgpFastBreak", "快攻命中率"], ["seasonHigh", "赛季最高分"],
+  ["foulout", "犯满离场"], ["ejections", "驱逐出场"], ["tf", "技术犯规"], ["ff", "恶意犯规"],
 ] as const
 const careerColumns = [
   ["pts", "总得分"], ["reb", "总篮板"], ["ast", "总助攻"], ["tpm", "三分命中数"],
-  ["games", "出场数"], ["min", "总时间"], ["stl", "总抢断"], ["blk", "总盖帽"],
+  ["games", "出场数"], ["min", "总时间（分钟）"], ["stl", "总抢断"], ["blk", "总盖帽"],
   ["to", "总失误"], ["oreb", "总前场篮板"], ["dreb", "总后场篮板"],
   ["fgm", "投篮命中数"], ["ftm", "罚球命中数"], ["dd", "两双"], ["td", "三双"],
+  ["pf", "总犯规"], ["fga", "投篮出手数"], ["noFgm", "投篮未中数"], ["tpa", "三分出手数"],
+  ["noTpa", "三分未中数"], ["fta", "罚球出手数"], ["noFtm", "罚球未中数"], ["fiftyPlus", "单场50+次数"],
 ] as const
 const advancedColumns = [
   ["ortg", "进攻效率"], ["drtg", "防守效率"], ["nrtg", "净效率"],
   ["tsp", "真实命中率"], ["efgp", "有效命中率"], ["usgp", "回合占有率"],
   ["astp", "助攻率"], ["astTo", "助攻失误比"], ["pie", "比赛贡献值"],
+  ["astRatio", "助攻比率"], ["orebp", "前场篮板率"], ["drebp", "后场篮板率"],
+  ["rebp", "篮板率"], ["pace", "回合数"],
 ] as const
 const highColumns = [
   ["maxPts", "单场得分"], ["maxReb", "单场篮板"], ["maxAsts", "单场助攻"],
   ["maxStl", "单场抢断"], ["maxBlk", "单场盖帽"], ["maxTpm", "单场三分命中"],
+  ["maxOreb", "单场前场篮板"], ["maxDreb", "单场后场篮板"], ["maxFga", "单场投篮出手"],
+  ["maxFgm", "单场投篮命中"], ["maxTpa", "单场三分出手"], ["maxFta", "单场罚球出手"],
+  ["maxFtm", "单场罚球命中"], ["maxPf", "单场犯规"], ["maxTo", "单场失误"],
 ] as const
 const nba = { competitionLeagueType: "NBA", competitionType: "NBA" } as const
 
