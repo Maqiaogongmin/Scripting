@@ -5,9 +5,17 @@
 | 脚本 | 功能 | 安装 |
 | --- | --- | --- |
 | [NBA 赛程 · Glass](scripts/NBA-Glass) | 全赛季赛程、虎扑球员评分与评论、多尺寸桌面组件 | [点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Freleases%2Fdownload%2Fnba-glass-v0.5.1%2FNBA-Glass.zip%3Fv%3D0.5.1%22%5D) |
-| [豆瓣书影音](scripts/Douban-Media) | 豆瓣影视、图书、专辑与评论，小、中、大三种桌面封面组件 | [点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Freleases%2Fdownload%2Fdouban-media-v0.3.4%2FDouban-Media.zip%3Fv%3D0.3.4%22%5D) |
+| [豆瓣书影音](scripts/Douban-Media) | 豆瓣影视、图书、专辑与评论，小、中、大三种桌面封面组件 | [点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Ftree%2Fmain%2Fscripts%2FDouban-Media%22%5D) |
 
 先在 iPhone / iPad 上安装 [Scripting App](https://scripting.fun/)，再通过上方链接导入脚本。
+
+豆瓣书影音使用固定的 GitHub 目录作为远程更新来源。用旧版链接安装过的用户，可在 Scripting 的「豆瓣书影音」脚本设置中，把远程来源改为以下地址，然后检查更新。
+
+```text
+https://github.com/Maqiaogongmin/Scripting/tree/main/scripts/Douban-Media
+```
+
+想自动安装后续版本，请在该脚本设置中启用定时检查，并打开 Scripting 的全局自动更新开关。
 
 ## 仓库结构
 
