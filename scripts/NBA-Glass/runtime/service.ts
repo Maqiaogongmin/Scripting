@@ -1,6 +1,6 @@
 import { api } from "./client"
-import { readCache, saveCache } from "./cache"
-import { beijingDate, type Game, type Season } from "./hupu"
+import { readCache, saveCache, type Snapshot } from "./cache"
+import { beijingDate, mergeSchedule, type Game, type Season } from "./hupu"
 
 export function expectedYear(): number {
   const date = beijingDate(Date.now())
@@ -11,6 +11,20 @@ export const seasonKey = () => `season-${expectedYear()}`
 export async function cachedSeason(): Promise<Season | null> {
   const snapshot = await readCache<Season>(seasonKey())
   return snapshot?.value.season === `${expectedYear()}-${expectedYear() + 1}` ? snapshot.value : null
+}
+function currentSeasonGames(games: Game[], year = expectedYear()): Game[] {
+  return games.filter(game => game.date >= `${year}-09-01` && game.date < `${year + 1}-08-01`)
+}
+export async function cachedRecent(): Promise<Snapshot<Game[]> | null> {
+  const snapshot = await readCache<Game[]>("recent")
+  if (!snapshot) return null
+  const games = currentSeasonGames(snapshot.value)
+  return games.length ? { ...snapshot, value: games } : null
+}
+export async function refreshRecent(): Promise<Snapshot<Game[]>> {
+  const games = currentSeasonGames(await api.recent())
+  if (!games.length) throw new Error("虎扑暂无本赛季近期比赛")
+  return saveCache("recent", games)
 }
 export async function rememberMatch(game: Game): Promise<void> {
   const full = await cachedSeason()
@@ -32,24 +46,21 @@ export async function refreshSeason(progress?: (done: number, total: number) => 
   if (!Number.isInteger(sourceYear) || sourceYear !== expectedYear()) throw new Error("来源赛季与当前日期不符，未替换缓存")
   const result = await api.season(sourceYear, recent, progress)
   await saveCache(seasonKey(), result)
-  await saveCache("recent", recent)
   return result
 }
 export async function widgetData(): Promise<{ games: Game[]; fetchedAt: number; cached: boolean; error: string }> {
-  const full = await cachedSeason()
-  const snapshot = await readCache<Game[]>("recent")
+  const [full, snapshot] = await Promise.all([cachedSeason(), cachedRecent()])
   let recent = snapshot?.value ?? []
   let fetchedAt = snapshot?.fetchedAt ?? full?.fetchedAt ?? 0
   let cached = true
   let error = ""
   if (!snapshot || Date.now() - snapshot.fetchedAt > 5 * 60 * 1000) {
     try {
-      recent = await api.recent()
-      fetchedAt = (await saveCache("recent", recent)).fetchedAt
+      const updated = await refreshRecent()
+      recent = updated.value
+      fetchedAt = updated.fetchedAt
       cached = false
     } catch (e) { error = String(e) }
   }
-  const games = new Map((full?.games ?? []).map(g => [g.id, g]))
-  for (const game of recent) if (game.date >= `${expectedYear()}-09-01` && game.date < `${expectedYear() + 1}-08-01`) games.set(game.id, game)
-  return { games: [...games.values()], fetchedAt, cached, error }
+  return { games: mergeSchedule(full?.games ?? [], recent), fetchedAt, cached, error }
 }

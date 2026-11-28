@@ -55,6 +55,11 @@ export function beijingDate(time: number): string {
 export function beijingTime(time: number): string {
   return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(time))
 }
+export function mergeSchedule(full: Game[], recent: Game[]): Game[] {
+  const games = new Map(full.map(game => [game.id, game]))
+  for (const game of recent) games.set(game.id, game)
+  return [...games.values()].sort((a, b) => a.time - b.time)
+}
 export function nextDays(games: Game[], now = Date.now()): { date: string; games: Game[] }[] {
   const today = beijingDate(now)
   const grouped = new Map<string, Game[]>()

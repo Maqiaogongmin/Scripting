@@ -2,6 +2,6 @@
   "name": "NBA赛程",
   "icon": "basketball.fill",
   "color": "#245AA6",
-  "version": "0.5.1",
-  "description": "全赛季 NBA 赛程、未来三个比赛日组件及虎扑本场球员评分与评论。"
+  "version": "0.6.0",
+  "description": "NBA 赛程、赛果、东西部排行、球员资料与虎扑评分，支持桌面组件。"
 }

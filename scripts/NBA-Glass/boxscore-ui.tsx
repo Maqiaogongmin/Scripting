@@ -1,6 +1,7 @@
 import { HStack, ScrollView, Text, VStack } from "scripting"
 import { statColumns, type BoxScore } from "./runtime/boxscore"
-import { Avatar, colors } from "./ui"
+import { PlayerLink } from "./player-ui"
+import { colors } from "./ui"
 
 export function StatsTable({ box, teamId }: { box: BoxScore; teamId: string }) {
   const c = colors()
@@ -14,7 +15,9 @@ export function StatsTable({ box, teamId }: { box: BoxScore; teamId: string }) {
   return <HStack alignment="top" spacing={0} frame={{ height }}>
     <VStack alignment="leading" spacing={0} frame={{ width: 112 }}>
       <Text font="caption2" foregroundStyle={c.secondary} frame={{ width: 112, height: 34, alignment: "leading" }}>球员</Text>
-      {team.players.map((player, i) => <HStack key={player.id} spacing={5} padding={{ horizontal: 3 }} frame={{ width: 112, height: 48 }} background={i % 2 === 0 ? c.surface : c.background}><Avatar url={player.avatar} name={player.name} size={22} /><VStack alignment="leading" spacing={1}><Text font="caption" foregroundStyle={c.primary} lineLimit={2}>{player.name}</Text><Text font="caption2" foregroundStyle={c.secondary}>{`#${player.number}${player.starter ? " · 先发" : ""}`}</Text></VStack></HStack>)}
+      {team.players.map((player, i) => <VStack key={player.id} alignment="leading" padding={{ horizontal: 3 }} frame={{ width: 112, height: 48, alignment: "leading" }} background={i % 2 === 0 ? c.surface : c.background}>
+        <PlayerLink player={player} compact subtitle={`#${player.number}${player.starter ? " · 先发" : ""}`} />
+      </VStack>)}
       <Text font="caption" fontWeight="semibold" foregroundStyle={c.primary} frame={{ width: 112, height: 48, alignment: "leading" }} background={c.surface}>{team.totalsLabel}</Text>
     </VStack>
     <ScrollView axes="horizontal" frame={{ maxWidth: "infinity", height }}>

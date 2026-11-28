@@ -1,12 +1,14 @@
 import { Button, Divider, HStack, Link, List, Navigation, NavigationLink, NavigationStack, Picker, ProgressView, Script, Section, Tab, TabView, Text, VStack, Widget, useEffect, useObservable, useState, useRef, type VirtualNode, type WidgetFamily } from "scripting"
 import { api } from "./runtime/client"
 import { readCache, saveCache } from "./runtime/cache"
-import { cachedSeason, refreshSeason, rememberMatch } from "./runtime/service"
+import { cachedRecent, cachedSeason, refreshRecent, refreshSeason, rememberMatch } from "./runtime/service"
 import { initialSelection } from "./runtime/selection"
-import { beijingDate, nextDays, type Board, type Comment, type Game, type Player, type Season } from "./runtime/hupu"
+import { beijingDate, mergeSchedule, nextDays, type Board, type Comment, type Game, type Player, type Season } from "./runtime/hupu"
 import { parseBoxScore, type BoxScore } from "./runtime/boxscore"
 import { StatsTable } from "./boxscore-ui"
-import { Avatar, colors, CommentCard, MatchRow, Surface } from "./ui"
+import { PlayerLink } from "./player-ui"
+import { StandingsPage } from "./standings-ui"
+import { colors, CommentCard, MatchRow, Surface } from "./ui"
 
 function PlayerComments({ player }: { player: Player }) {
   const c = colors()
@@ -101,7 +103,12 @@ function Detail({ game, onUpdated }: { game: Game; onUpdated?: (game: Game) => v
       </VStack> : <Section>
         {!busy && !board && !error ? <Text foregroundStyle={c.secondary}>暂无评分</Text> : null}
         {players.map(player => <Surface key={player.key.outBizNo}>
-          <HStack spacing={12} frame={{ maxWidth: "infinity" }}><Avatar url={player.avatar} name={player.name} size={48} /><VStack alignment="leading" frame={{ maxWidth: "infinity", alignment: "leading" }}><Text font="headline" foregroundStyle={c.primary}>{player.name}</Text><Text font="caption" foregroundStyle={c.secondary}>{player.stats}</Text></VStack><VStack alignment="trailing"><Text font="title2" fontWeight="bold" foregroundStyle={c.accent}>{player.rating == null ? "待评分" : player.rating.toFixed(1)}</Text><Text font="caption2" foregroundStyle={c.secondary}>{`${player.raters.toLocaleString()} 人评分`}</Text></VStack></HStack>
+          <HStack spacing={12} frame={{ maxWidth: "infinity" }}>
+            <VStack alignment="leading" frame={{ maxWidth: "infinity", alignment: "leading" }}>
+              <PlayerLink player={player} subtitle={player.stats} />
+            </VStack>
+            <VStack alignment="trailing"><Text font="title2" fontWeight="bold" foregroundStyle={c.accent}>{player.rating == null ? "待评分" : player.rating.toFixed(1)}</Text><Text font="caption2" foregroundStyle={c.secondary}>{`${player.raters.toLocaleString()} 人评分`}</Text></VStack>
+          </HStack>
           <VStack alignment="leading">{player.hotComments.map(comment => <CommentCard key={comment.id} comment={comment} />)}</VStack>
           <NavigationLink destination={<PlayerComments player={player} />} buttonStyle="plain"><Text foregroundStyle={c.accent}>{`最新评论（${player.commentCount.toLocaleString()}）`}</Text></NavigationLink>
         </Surface>)}
@@ -118,44 +125,78 @@ function App() {
   const [recent, setRecent] = useState("赛程")
   const [previewError, setPreviewError] = useState("")
   const [season, setSeason] = useState<Season | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [seasonBusy, setSeasonBusy] = useState(false)
   const [progress, setProgress] = useState("")
-  const [error, setError] = useState("")
+  const [seasonError, setSeasonError] = useState("")
+  const [recentGames, setRecentGames] = useState<Game[]>([])
+  const [recentBusy, setRecentBusy] = useState(true)
+  const [recentError, setRecentError] = useState("")
+  const recentLoading = useRef(false)
+  const seasonLoading = useRef(false)
   const [phase, setPhase] = useState("NBA常规赛")
   const [team, setTeam] = useState("")
   const [month, setMonth] = useState("")
   const [day, setDay] = useState("")
   const [focus, setFocus] = useState(String(Script.queryParameters.matchId ?? ""))
   const [filtersExpanded, setFiltersExpanded] = useState(false)
-  function locate(value: Season) {
+  function locate(games: Game[]) {
     if (!Script.queryParameters.matchId && !Script.queryParameters.date) return
-    const selection = initialSelection(value.games, Script.queryParameters)
+    const selection = initialSelection(games, Script.queryParameters)
     setMonth(selection.month); setDay(selection.day); setPhase(selection.phase)
-    if (selection.focus) setFocus(selection.focus)
   }
-  async function load(force: boolean) {
-    if (busy) return
-    setBusy(true); setError("")
-    const prior = await cachedSeason()
-    if (prior) { setSeason(prior); if (!season) locate(prior) }
-    if (!force && prior && Date.now() - prior.fetchedAt < 6 * 3600 * 1000) { setBusy(false); return }
+  async function loadRecent(initial = false) {
+    if (recentLoading.current) return
+    recentLoading.current = true
+    setRecentBusy(true); setRecentError("")
     try {
-      const value = await refreshSeason((done, total) => setProgress(`同步球队 ${done}/${total}`))
-      setSeason(value); if (!season) locate(value)
+      let full: Game[] = []
+      let cachedMatch = false
+      if (initial) {
+        const [cachedFull, cachedWindow] = await Promise.all([cachedSeason(), cachedRecent()])
+        full = cachedFull?.games ?? []
+        const window = cachedWindow?.value ?? []
+        setSeason(cachedFull)
+        setRecentGames(window)
+        const cached = mergeSchedule(full, window)
+        cachedMatch = cached.some(game => game.id === focus)
+        locate(cached)
+      }
+      const fresh = await refreshRecent()
+      setRecentGames(fresh.value)
+      if (initial && focus && !cachedMatch) locate(mergeSchedule(full, fresh.value))
       Widget.reloadAll()
-    } catch (e) { setError(String(e)) } finally { setBusy(false); setProgress("") }
+    } catch { setRecentError("近期比赛更新失败") }
+    finally { recentLoading.current = false; setRecentBusy(false) }
   }
-  useEffect(() => { void load(false) }, [])
-  const focused = season?.games.find(g => g.id === focus)
-  const months = [...new Set(season?.games.map(g => g.date.slice(0, 7)) ?? [])].sort()
-  const dates = [...new Set(season?.games.filter(g => !month || g.date.startsWith(month)).map(g => g.date) ?? [])].sort()
-  const games = season?.games.filter(g => (!phase || g.phase === phase) && (!team || g.teams.some(t => t.id === team)) && (!month || g.date.startsWith(month)) && (!day || g.date === day)) ?? []
+  async function syncSeason() {
+    if (seasonLoading.current) return
+    seasonLoading.current = true
+    setSeasonBusy(true); setSeasonError("")
+    try {
+      const full = await refreshSeason((done, total) => setProgress(`同步球队 ${done}/${total}`))
+      setSeason(full)
+      Widget.reloadAll()
+    } catch { setSeasonError("完整赛季同步失败") }
+    finally { seasonLoading.current = false; setSeasonBusy(false); setProgress("") }
+  }
+  useEffect(() => { void loadRecent(true) }, [])
+  const schedule = mergeSchedule(season?.games ?? [], recentGames)
+  const focused = focus ? schedule.find(g => g.id === focus) : undefined
+  const months = [...new Set(schedule.map(g => g.date.slice(0, 7)))].sort()
+  const dates = [...new Set(schedule.filter(g => !month || g.date.startsWith(month)).map(g => g.date))].sort()
+  const games = schedule.filter(g => (!phase || g.phase === phase) && (!team || g.teams.some(t => t.id === team)) && (!month || g.date.startsWith(month)) && (!day || g.date === day))
   const groups = [...new Set(games.map(g => g.date))]
-  const recentGroups = recent === "赛程" ? nextDays(season?.games ?? []) : [...new Set((season?.games ?? []).filter(g => g.status === "COMPLETED" && g.time <= Date.now()).map(g => g.date))].sort().reverse().slice(0, 3).map(date => ({ date, games: (season?.games ?? []).filter(g => g.date === date && g.status === "COMPLETED") }))
-  const toolbar = { cancellationAction: <Button title="关闭" action={dismiss} />, primaryAction: <Button title="刷新" action={() => load(true)} disabled={busy} /> }
-  const status = <VStack spacing={6}>{busy ? <ProgressView title={progress || "正在同步赛程"} /> : null}{error ? <VStack><Text font="caption" foregroundStyle={c.secondary}>同步失败</Text><Button title="重试" action={() => load(true)} buttonStyle="bordered" /></VStack> : null}</VStack>
+  const completed = recent === "赛果" ? schedule.filter(g => g.status === "COMPLETED" && g.time <= Date.now()) : []
+  const recentGroups = recent === "赛程" ? nextDays(schedule) : [...new Set(completed.map(g => g.date))].sort().reverse().slice(0, 3).map(date => ({ date, games: completed.filter(g => g.date === date) }))
+  const close = <Button title="关闭" action={dismiss} />
+  const toolbar = { cancellationAction: close, primaryAction: <Button title="刷新" action={() => loadRecent()} disabled={recentBusy} /> }
+  const seasonToolbar = { cancellationAction: close, primaryAction: <Button title="同步完整赛季" action={syncSeason} disabled={seasonBusy || (recentBusy && !schedule.length)} /> }
+  const switcher = <Picker title="查看" value={recent} onChanged={setRecent} pickerStyle="segmented" padding={{ horizontal: 20 }}>
+    <Text tag="赛程">赛程</Text><Text tag="赛果">赛果</Text><Text tag="排行">排行</Text>
+  </Picker>
   function updateGame(game: Game) {
     setSeason(prior => prior ? { ...prior, games: prior.games.map(item => item.id === game.id ? game : item) } : prior)
+    setRecentGames(prior => prior.map(item => item.id === game.id ? game : item))
   }
   function matchSection(date: string, items: Game[]) {
     return <Section key={date} header={<Text font="headline" foregroundStyle={c.secondary}>{date}</Text>}>
@@ -166,12 +207,18 @@ function App() {
     return <HStack spacing={12} frame={{ minHeight: 44 }}><Text font="subheadline" foregroundStyle={c.secondary} frame={{ width: 44, alignment: "leading" }}>{title}</Text>{picker}</HStack>
   }
   return <TabView selection={tab}>
-    <Tab title="近日" systemImage="basketball" value={0}><NavigationStack><VStack spacing={12} navigationTitle="近日赛程" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={toolbar}>
-      <Picker title="查看" value={recent} onChanged={setRecent} pickerStyle="segmented" padding={{ horizontal: 20 }}><Text tag="赛程">赛程</Text><Text tag="赛果">赛果</Text></Picker>
-      {status}
-      <List listStyle="plain" scrollContentBackground="hidden">{recentGroups.map(group => matchSection(group.date, group.games))}{season && !busy && !recentGroups.length ? <Text foregroundStyle={c.secondary}>暂无可用比赛</Text> : null}</List>
-    </VStack></NavigationStack></Tab>
-    <Tab title="赛季" systemImage="calendar" value={1}><NavigationStack>{focused ? <VStack><Button title="返回赛程" action={() => setFocus("")} buttonStyle="bordered" frame={{ minHeight: 44 }} /><Detail game={focused} onUpdated={updateGame} /></VStack> : <VStack spacing={8} navigationTitle="赛季赛程" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={toolbar}>
+    <Tab title="近日" systemImage="basketball" value={0}><NavigationStack>{recent === "排行"
+      ? <StandingsPage active={tab.value === 0} switcher={switcher} close={dismiss} />
+      : <VStack spacing={12} navigationTitle="近日赛程" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={toolbar}>
+        {switcher}
+        {recentBusy && !recentGroups.length ? <ProgressView title="正在刷新比赛" /> : null}
+        {recentError ? <Text font="caption" foregroundStyle={c.secondary}>{recentGroups.length ? "更新失败，显示上次比赛数据" : recentError}</Text> : null}
+        <List listStyle="plain" scrollContentBackground="hidden">
+          {recentGroups.map(group => matchSection(group.date, group.games))}
+          {!recentBusy && !recentError && !recentGroups.length ? <Text foregroundStyle={c.secondary}>暂无可用比赛</Text> : null}
+        </List>
+      </VStack>}</NavigationStack></Tab>
+    <Tab title="赛季" systemImage="calendar" value={1}><NavigationStack>{focused ? <VStack><Button title="返回赛程" action={() => { locate(schedule); setFocus("") }} buttonStyle="bordered" frame={{ minHeight: 44 }} /><Detail game={focused} onUpdated={updateGame} /></VStack> : <VStack spacing={8} navigationTitle="赛季赛程" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={seasonToolbar}>
       {season ? <HStack spacing={12} padding={{ horizontal: 20 }}><Button title={filtersExpanded ? "收起筛选 ↑" : "展开筛选 ↓"} buttonStyle="bordered" frame={{ minHeight: 44 }} action={() => setFiltersExpanded(value => !value)} /><Text font="caption" foregroundStyle={c.secondary} lineLimit={1} frame={{ maxWidth: "infinity", alignment: "trailing" }}>{[phase.replace("NBA", "") || "全部阶段", season.teams.find(t => t.id === team)?.name, day || month].filter(Boolean).join(" · ")}</Text></HStack> : null}
       {season && filtersExpanded ? <VStack spacing={0} padding={{ horizontal: 20 }}>
         {filterRow("阶段", <Picker title="阶段" labelsHidden value={phase} onChanged={(value: string) => { setPhase(value); setDay("") }} pickerStyle="menu" frame={{ maxWidth: "infinity", alignment: "trailing" }}><Text tag="">全部阶段</Text>{[...new Set(season.games.map(g => g.phase))].map(p => <Text key={p} tag={p}>{p}</Text>)}</Picker>)}<Divider />
@@ -180,14 +227,16 @@ function App() {
         {filterRow("日期", <Picker title="日期" labelsHidden value={day} onChanged={setDay} pickerStyle="menu" frame={{ maxWidth: "infinity", alignment: "trailing" }}><Text tag="">全部日期</Text>{dates.map(d => <Text key={d} tag={d}>{d}</Text>)}</Picker>)}
         <HStack spacing={12} padding={{ top: 8 }}><Button title="回到今天" buttonStyle="bordered" frame={{ maxWidth: "infinity", minHeight: 44 }} action={() => { const today = beijingDate(Date.now()); setPhase(""); setTeam(""); setMonth(today.slice(0, 7)); setDay(today) }} /><Button title="完整赛季" buttonStyle="bordered" frame={{ maxWidth: "infinity", minHeight: 44 }} action={() => { setMonth(""); setDay(""); setTeam(""); setPhase("") }} /></HStack>
       </VStack> : null}
-      {status}
+      {seasonBusy ? <ProgressView title={progress || "正在同步完整赛季"} /> : null}
+      {seasonError ? <Text font="caption" foregroundStyle={c.secondary}>{seasonError}</Text> : null}
+      {!season && !seasonBusy && schedule.length ? <Text font="caption" foregroundStyle={c.secondary}>当前显示近期比赛</Text> : null}
       <List listStyle="plain" scrollContentBackground="hidden">
         {groups.map(date => matchSection(date, games.filter(g => g.date === date)))}
-        {season && !busy && !games.length ? <VStack><Text>所选范围暂无比赛</Text><Button title="查看未来比赛日" buttonStyle="bordered" action={() => { const next = nextDays(season.games)[0]; setPhase(""); setTeam(""); setDay(next?.date ?? ""); setMonth(next?.date.slice(0, 7) ?? "") }} /></VStack> : null}
-        {focus && season && !focused ? <Text>指定比赛未在当前赛季找到，请从列表选择。</Text> : null}
+        {season && !seasonBusy && !games.length ? <VStack><Text>所选范围暂无比赛</Text><Button title="查看未来比赛日" buttonStyle="bordered" action={() => { const next = nextDays(schedule)[0]; setPhase(""); setTeam(""); setDay(next?.date ?? ""); setMonth(next?.date.slice(0, 7) ?? "") }} /></VStack> : null}
+        {focus && !focused && !recentBusy && !seasonBusy ? <Text>找不到指定比赛</Text> : null}
       </List>
     </VStack>}</NavigationStack></Tab>
-    <Tab title="组件" systemImage="square.grid.2x2" value={2}><NavigationStack><VStack alignment="leading" spacing={24} padding={24} frame={{ maxWidth: "infinity", maxHeight: "infinity", alignment: "topLeading" }} navigationTitle="桌面组件" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={toolbar}>
+    <Tab title="组件" systemImage="square.grid.2x2" value={2}><NavigationStack><VStack alignment="leading" spacing={24} padding={24} frame={{ maxWidth: "infinity", maxHeight: "infinity", alignment: "topLeading" }} navigationTitle="桌面组件" navigationBarTitleDisplayMode="inline" navigationContainerBackground={c.background} toolbar={{ cancellationAction: close }}>
       {([{ title: "小号", family: "systemSmall" }, { title: "中号", family: "systemMedium" }, { title: "大号", family: "systemLarge" }, { title: "超大号", family: "systemExtraLarge" }] as { title: string; family: WidgetFamily }[]).map(size => <Button key={size.family} title={`预览${size.title}组件`} buttonStyle="bordered" frame={{ maxWidth: "infinity", minHeight: 44 }} action={async () => { setPreviewError(""); try { await Widget.preview({ family: size.family }) } catch (e) { setPreviewError(String(e)) } }} />)}
       {previewError ? <Text foregroundStyle={c.secondary}>预览暂时不可用</Text> : null}
     </VStack></NavigationStack></Tab>
