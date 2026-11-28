@@ -2,15 +2,15 @@
 
 适用于 Scripting App
 
-[点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Ftree%2Fmain%2Fscripts%2FNBA-Glass%22%5D) · [版本下载](https://github.com/Maqiaogongmin/Scripting/releases/tag/nba-glass-v0.6.3)
+[点击安装](https://scripting.fun/import_scripts?urls=%5B%22https%3A%2F%2Fgithub.com%2FMaqiaogongmin%2FScripting%2Ftree%2Fmain%2Fscripts%2FNBA-Glass%22%5D) · [版本下载](https://github.com/Maqiaogongmin/Scripting/releases/tag/nba-glass-v0.6.4)
 
 NBA 赛程 · Glass 把整个赛季的赛程、球员评分和球迷评论放进同一个脚本。近日、赛季、组件三个底部标签，让查比赛和看赛后讨论各有位置；中性蓝灰玻璃界面兼顾清晰度和轻盈感。
 
 - 近日：先显示缓存，再刷新近期赛程和赛果。球队排行可切换东西部，显示名次、胜负、胜率和胜场差。
 - 赛季：点击右上角「同步完整赛季」获取所有已公布比赛，按阶段、球队、月份和日期筛选。筛选栏默认折叠。
-- 比赛详情：切换两队及“评分 / 技术统计”，查看球员评分、评论和完整统计表；详情刷新直接更新本场比分与状态。
+- 比赛详情：切换两队及“评分 / 技术统计”，查看球员评分、评论和完整统计表，宽屏自动铺满；详情刷新直接更新本场比分与状态。
 - 球员资料：点击头像或姓名查看基本资料、年薪、薪资排名和合同。本赛季保留基础、进阶与三项命中率；生涯展示累计及单场最高数据，历季统计按赛季筛选，默认最新赛季，补充首发、时间、抢断、盖帽和投篮明细。14区域投篮热图随所选赛季更新，可展开精确命中率及命中/出手次数。
-- 桌面组件：小号突出单场，中号按日期分列，大号展示多场，超大号显示更多赛程；支持球队图标与比赛入口。
+- 桌面组件：小号用斜切队色、大队徽与玻璃质感 VS 展示单场对决，分界高光轻微变化；中号三个比赛日并列，大号多场对阵，超大号三列。适配全彩、单色/着色及透明背景，点击对阵进入比赛详情。
 
 ## 使用
 
